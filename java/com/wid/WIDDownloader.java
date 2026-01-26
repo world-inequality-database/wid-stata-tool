@@ -2,22 +2,49 @@ package com.wid;
 
 import java.net.*;
 import java.util.*;
+
+//import javax.xml.crypto.Data;
+
 import java.io.*;
 import org.json.*;
 import com.stata.sfi.*;
 
 public class WIDDownloader {
 
-    private static String apiKey = "<private API key>";
+    private static final String apiKey = "rYFByOB0ioaPATwHtllMI71zLOZSK0Ic5veQonJP";
+    private static final String ENVIRONMENT = "prod";  // Change to "dev" or "prod" when needed
+    private static final String BASE_API_URL = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/" + ENVIRONMENT;
 
-    private static String apiCountriesAvailableVariables = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-available-variables";
-    private static String apiCountriesVariables          = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables";
-    private static String apiCountriesVariablesMetadata  = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables-metadata";
+    private static final String apiCountriesAvailableVariables = BASE_API_URL + "/countries-available-variables";
+    private static final String apiCountriesVariables          = BASE_API_URL + "/countries-variables";
+    private static final String apiCountriesVariablesMetadata  = BASE_API_URL + "/countries-variables-metadata";
+
+    private static void debugPrint(String verbosity, String message) {
+        if ("verbose".equalsIgnoreCase(verbosity)) {
+            SFIToolkit.display("\n" + message);
+        }
+    }
+
+    // Convert an S3 URI such as s3://bucket/key to a HTTPS URL
+    private static String s3UriToHttps(String s3Uri) {
+        if (s3Uri != null && s3Uri.startsWith("s3://")) {
+            String path = s3Uri.substring(5); // remove prefix
+            int slash = path.indexOf('/');
+            if (slash > 0) {
+                String bucket = path.substring(0, slash);
+                String key = path.substring(slash + 1);
+                return "https://" + bucket + ".s3.amazonaws.com/" + key;
+            }
+        }
+        return s3Uri;
+    }
 
     public static int importCountriesAvailableVariables(String[] args) {
+      
         // Retrieve the arguments of the query
         String countries = args[0];
         String sixlet = args[1];
+        String verbosity = args[2];
 
         // Create the query
         String query;
@@ -36,6 +63,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query 
+            debugPrint(verbosity, "Calling API: " + apiCountriesAvailableVariables + "?" + query);
+            
             // Perform the GET query
             URL queryURL = new URL(apiCountriesAvailableVariables + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();
@@ -136,6 +167,7 @@ public class WIDDownloader {
         } else {
         	includeExtrapolations = true;
         }
+        String verbosity = args[3];
 
         // Create the query
         String query;
@@ -154,6 +186,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query
+            debugPrint(verbosity, "Calling API: " + apiCountriesVariables + "?" + query);
+
             // Perform the GET query
             URL queryURL = new URL(apiCountriesVariables + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();
@@ -183,6 +219,32 @@ public class WIDDownloader {
             List<Double>  listValue      = new ArrayList<Double>();
 
             JSONObject json = new JSONObject(response);
+
+            if ("payload_too_large".equals(json.optString("status"))) {
+                //SFIToolkit.error("\n" + json.optString("message"));
+                SFIToolkit.error("\n Downloading large data from alternative route (please wait)");
+                String downloadUrl = json.optString("download_url");
+                debugPrint(verbosity, "Downloading large payload from: " + downloadUrl);
+
+                try {
+                    URL dl = new URL(downloadUrl);
+                    HttpURLConnection dlConn = (HttpURLConnection) dl.openConnection();
+                    dlConn.setRequestMethod("GET");
+                    Scanner dlScanner = new Scanner(dlConn.getInputStream());
+                    StringBuilder sb = new StringBuilder();
+                    while (dlScanner.hasNext()) {
+                        sb.append(dlScanner.nextLine());
+                    }
+                    dlScanner.close();
+                    response = sb.toString();
+                    json     = new JSONObject(response);
+                } catch (Exception ex) {
+                    SFIToolkit.error("\nCould not download large result");
+                    SFIToolkit.error(ex.toString());
+                    return(0);
+                }
+            }
+
 
             Iterator<String> indicatorIter = json.keys();
             while (indicatorIter.hasNext()) {
@@ -297,6 +359,7 @@ public class WIDDownloader {
         // Retrieve the arguments of the query
         String countries = args[0];
         String variables = args[1];
+        String verbosity = args[2];  
 
         // Create the query
         String query;
@@ -315,6 +378,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query
+            debugPrint(verbosity, "Calling API: " + apiCountriesVariablesMetadata + "?" + query);
+
             // Perform the GET query
             URL queryURL = new URL(apiCountriesVariablesMetadata + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();

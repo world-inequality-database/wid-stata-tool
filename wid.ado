@@ -1,9 +1,9 @@
-*! wid v1.0.4 Thomas Blanchet 7apr2020
+*! wid v1.0.6 world inequality database 26Jan2026
 
 program wid
 	version 13
 	
-	syntax, [INDicators(string) AReas(string) Years(numlist) Perc(string) AGes(string) POPulation(string) METAdata EXclude clear]
+	syntax, [INDicators(string) AReas(string) Years(numlist) Perc(string) AGes(string) POPulation(string) METAdata EXclude clear VERBOSE]
 	
 	// ---------------------------------------------------------------------- //
 	// Check if there are already some data in memory
@@ -14,6 +14,12 @@ program wid
 		display as error "no; data in memory would be lost"
 		exit 4
 	}
+	
+	// ---------------------------------------------------------------------- //
+	// Define verbosity
+	// ---------------------------------------------------------------------- //
+	
+    local verbosity = cond("`verbose'" != "", "verbose", "silent")
 	
 	// ---------------------------------------------------------------------- //
 	// Check the user specified at least some countries and/or indicators
@@ -60,11 +66,11 @@ program wid
 		clear
 		if regexm("`sixlet'", "^[a-z][a-z][a-z][a-z][a-z][a-z]$") {
 			clear
-			javacall com.wid.WIDDownloader importCountriesAvailableVariables, args("`areas'" "`sixlet'")
+			javacall com.wid.WIDDownloader importCountriesAvailableVariables, args("`areas'" "`sixlet'" "`verbosity'") jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
 		}
 		else if ("`sixlet'" == "_all") {
 			clear
-			javacall com.wid.WIDDownloader importCountriesAvailableVariables, args("`areas'" "all")
+			javacall com.wid.WIDDownloader importCountriesAvailableVariables, args("`areas'" "all" "`verbosity'") jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
 		}
 		else {
 			display as error "`name' is not a valid six letter code"
@@ -278,7 +284,8 @@ program wid
 		quietly levelsof country if (chunk == `c'), separate(",") local(areas_list) clean
 		
 		clear
-		javacall com.wid.WIDDownloader importCountriesVariables, args("`areas_list'" "`variables_list'" "`exclude'")
+		javacall com.wid.WIDDownloader importCountriesVariables, args("`areas_list'" "`variables_list'" "`exclude'" "`verbosity'")  jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
+		
 		quietly drop if missing(value)
 		
 		if (`c' != 0) {
@@ -338,7 +345,7 @@ program wid
 			quietly levelsof country if (chunk == `c'), separate(",") local(areas_list) clean
 			
 			clear
-			javacall com.wid.WIDDownloader importCountriesVariablesMetadata, args("`areas_list'" "`variables_list'")
+			javacall com.wid.WIDDownloader importCountriesVariablesMetadata, args("`areas_list'" "`variables_list'" "`verbosity'")  jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
 			
 			// Pass if the dataset is empty (can happen with metadata)
 			quietly count
