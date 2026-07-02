@@ -255,7 +255,10 @@ public class WIDDownloader {
                     JSONObject countryData = (JSONObject) indicatorDataIter.next();
 
                     String country = JSONObject.getNames(countryData)[0];
-                    
+
+                    // Retrieve values
+                    JSONArray countryValues = countryData.getJSONObject(country).getJSONArray("values");
+
                     // Retrieve data on extrapolation, if required
                     List<Integer> excludeYears = new ArrayList<Integer>();
                     if (!includeExtrapolations) {
@@ -265,6 +268,18 @@ public class WIDDownloader {
 						String dataPoints = countryMeta.optString("data_points");
 						
 						if (!extrapolation.equals("")) {
+							// Last year of the series, used as the end of open-ended
+							// extrapolation periods
+							int lastYear = Integer.MIN_VALUE;
+							Iterator lastYearIter = countryValues.iterator();
+							while (lastYearIter.hasNext()) {
+								JSONObject value = (JSONObject) lastYearIter.next();
+								int y = value.getInt("y");
+								if (y > lastYear) {
+									lastYear = y;
+								}
+							}
+
 							// List of data points to be included in any case, if any
 							List<Integer> listDataPoints = new ArrayList<Integer>();
 							if (!dataPoints.equals("")) {
@@ -281,9 +296,16 @@ public class WIDDownloader {
 							Iterator extrapolationArrayIter = extrapolationArray.iterator();
 							while (extrapolationArrayIter.hasNext()) {
 								JSONArray extrapolationPeriod = (JSONArray) extrapolationArrayIter.next();
+								if (extrapolationPeriod.length() == 0) {
+									continue;
+								}
 								int yearStart = extrapolationPeriod.getInt(0);
-								int yearEnd = extrapolationPeriod.getInt(1);
-								
+								// Extrapolation periods can be open-ended (e.g. "[2018, ]",
+								// meaning "from 2018 onwards"), in which case the end year
+								// is missing after parsing: default to the last year of
+								// the series
+								int yearEnd = extrapolationPeriod.optInt(1, lastYear);
+
 								for (int i = yearStart; i <= yearEnd; i++) {
 									if (!listDataPoints.contains(i)) {
 										excludeYears.add(i);
@@ -292,9 +314,6 @@ public class WIDDownloader {
 							}
 						}
                     }
-                    
-                    // Retrieve values
-                    JSONArray countryValues = countryData.getJSONObject(country).getJSONArray("values");
 
                     Iterator countryValuesIter = countryValues.iterator();
                     while (countryValuesIter.hasNext()) {
